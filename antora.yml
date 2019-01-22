@@ -1,5 +1,5 @@
-name: guides
-title: Guides and Tutorials
+name: common
+title: OpenDevStack
 version: latest
 nav: 
 - modules/ROOT/nav.adoc

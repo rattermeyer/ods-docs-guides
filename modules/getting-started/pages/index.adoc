@@ -1,6 +1,7 @@
 = Getting started
 :experimental:
 :page-layout: documentation
+:toc:
 
 == Introduction
 
