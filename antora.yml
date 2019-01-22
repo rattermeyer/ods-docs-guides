@@ -1,0 +1,6 @@
+name: guides
+title: Guides and Tutorials
+version: latest
+nav: 
+- modules/ROOT/nav.adoc
+
