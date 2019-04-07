@@ -1,6 +1,8 @@
 .Guides and Tutorials
 * xref:getting-started:index.adoc[Getting Started]
-* xref:getting-started:documenation.adoc[Contributing Documentation]
+* xref:getting-started::documenation.adoc[Contributing Documentation]
+* xref:ods-core::development-guide.adoc[Development Guide]
+* xref:ods-core::update-guide.adoc[Update Guide]
 
 .Getting Started
 * Overview
