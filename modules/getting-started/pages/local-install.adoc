@@ -1,0 +1,735 @@
+= Local installation
+
+== Goal
+
+We will create and configure 3 VMs, so that you are able to test (and develop for) the OpenDevStack project.
+We will setup 3 virtual machines:
+
+atlcon::
+This the ansible controller. Whenever you want to run Ansible scripts you have to login to this machine.
+It is a very small machine and helps to prevent setting up Ansible correctly on your computer (e.g. under cygwin)
+
+atlassian:
+This VM hosts all the Atlassian Tools (Confluence, Jira, Bitbucket, Crowd) as well as a Rundeck installation.
+There will be an nginx based reverse proxy for the different Atlassian hosts.
+
+openshift:
+This VM will run the OpenShift all in one cluster.
+
+At the end of this tutorial, you should be able to provision new projects usind OpenDevStack.
+
+The setup procedure involves 4 steps:
+
+* Cloning the `ods-core` base repository
+* Perform basic setup of all the tools using. This is automated using a script
+* Perform required manual configuration of the Atlassian tools. Atlassian tools do not provide a tooling support to set them up non-interactively
+* Preparing the different tools for OpenDevStack. This is also automated
+
+The system will then be available at the following locations
+
+.Table Overview Endpoints
+|===
+|Component|URL
+
+|Jira|https://jira.192.168.56.31.nip.io
+|Confluence|https://confluence.192.168.56.31.nip.io
+|Bitbucket|https://bitbucket.192.168.56.31.nip.io
+|Crowd|https://crowd.192.168.56.31.nip.io
+|OpenShift Web Console|https://192.168.56.101.nip.io:8443
+|Rundeck|http://192.168.56.31:4440/rundeck
+|===
+
+We will create the following users for testing purposes with default passwords.
+
+.Table standard users
+|===
+|User|Password
+
+|opendevstack.admin|admin
+|cd_user|cd_user
+|bitbucket.admin|admin
+|confluence.admin|admin
+|jira.admin|admin
+|===
+
+== Project Layout and helping us to identify things to streamline
+
+On the host operating system, we assume that we are working under a specific directory `ods-install`.
+
+If running any of the scripts reports errors, you can find a file `ansible.log` in the `ods-core/infrastructure-setup` directory.
+
+This file could be helpful for helping.
+
+== Cloning the Repository
+
+    git clone https://github.com/rattermeyer/ods-core.git
+
+You now should switch to the tag or branch you want to work from
+
+    git checkout stable
+
+and switch to the `infrastructure-setup` directory to perform the setup
+
+[source,bash]
+....
+     cd ods-core/infrastructure-setup
+     ./setup-local-environment.sh
+....
+
+This will ask for several values. For a local installation, it is safe to go with the defaults. So just hit "Enter"
+
+....
+OKD IP configuration
+
+Enter your OpenShift Cluster IP and press [ENTER] (default: 192.168.56.101):
+
+OKD docker registry configuration
+
+Enter your OpenShift Cluster internal Docker registry IP and press [ENTER] (default: 172.30.1.1:5000):
+
+Bitbucket repo configuration
+
+Enter your local Bitbucket installation repository path and press [ENTER] (default: https://cd_user@bitbucket.192.168.56.31.nip.io/scm):
+
+Enter your bitbucketHostIp:Port to fetch the CA bundle from (default: 192.168.56.31:443):
+
+CD user configuration
+
+Enter your CD user name [ENTER] (default: cd_user):
+Enter your CD user password [ENTER] (default: cd_user):
+
+Nexus password configuration
+
+Enter your Nexus developer user password and press [ENTER] (default: developer):
+
+Sonarqube configuration
+
+Enter Sonarqube admin password and press [ENTER] (default: sonarqube):
+Enter Sonarqube Crowd password and press [ENTER] (default: sonarqube):
+Enter Sonarqube database password and press [ENTER] (default: sonarqube):
+
+RShiny configuration
+
+Enter your RShiny user name and press [ENTER] (default: rshiny):
+Enter your RShiny password and press [ENTER] (default: rshiny):
+
+Enter your pipeline secret and press [ENTER] (default: secret101):
+
+Provision application configuration
+
+Enter your provision application Crowd password and press [ENTER] (default: provision):
+Enter your provision application jasypt password and press [ENTER] (default: jasypt):
+Enter your provision application mail password and press [ENTER] (default: mail):
+
+Write configuration to /cygdrive/d/noscan/projects/ods-fresh-install/local.env.config
+....
+
+After this the script will boot up the 3 VMs and start provisioning the base software components.
+Be patient. This takes some time (started at 12:58).
+
+NOTE: There are several steps that take really a long time. For example the step "Enable OpenShift Service" might take 10 min (or more) to finish.
+Don't be alarmed. You can follow progress on this task if you log into the `openshift` VM.
+
+[IMPORTANT]
+.Errorless execution
+====
+Make sure that the script runs without any errors. If you encounter errors try to fix the root cause and rerun the script, or only the ansible script `playbooks/dev.yml`
+
+The single script(s) can be run on `atlcon`
+
+    vagrant ssh atlcon
+    cd /vagrant/ansible
+    ansible-playbook -i inventories/dev playbooks/dev.yml --ask-vault
+====
+
+== Checking OpenShift status
+
+TODO
+
+== Atlassian Configuration
+
+=== Crowd
+
+
+==== Run Configuration Wizard
+
+Access https://crowd.192.168.56.31.nip.io/crowd/console
+
+Be patient. First time accessing this page will take some time.
+
+===== Step 1: License key
+
+Here you can see the server id you need for the license you can get from the https://my.atlassian.com/products/index[My Atlassian page]. Use the link to get an evaluation license (Crowd Server) or enter a valid license key into the textbox.
+
+===== Step 2: Crowd installation
+
+Here choose the *New installation* option.
+
+===== Step 3: Database Configuration
+
+The next step is the database configuration.
+Choose the *JDBC Connection* option and configure the database with the following settings
+
+|===
+| Option | Value
+
+| Database
+| PostgreSQL
+
+| Driver class name
+| org.postgresql.Driver
+
+| JDBC URL
+| jdbc:postgresql://localhost:5432/crowd?reWriteBatchedInserts=true&prepareThreshold=0
+
+| Username
+| crowd
+
+| Password
+| crowd
+
+| Hibernate dialect
+| org.hibernate.dialect.PostgreSQLDialect
+|===
+
+===== Step 4: Options
+
+Choose a deployment title, e.g. _OpenDevStack_ and set the *Base URL* to `+https://crowd.192.168.56.31.nip.io/crowd+`
+
+===== Step 5: Mail configuration
+
+For the local test environment a mail server is not necessary, so you can skip this step by choosing *Later*
+
+===== Step 6: Internal directory
+
+Enter the name for the internal crowd directory, e.g. _OpenDevStack_
+
+===== Step 7: Default administrator
+
+Enter the data for the default administrator, so you are able to login to crowd.
+We will use for this guide: 
+
+|===
+Username|Password
+
+opendevstack.admin|admin
+|===
+
+===== Step 8: Integrated applications
+
+Enable the integrated application for testing purposes.
+
+===== Step 9: Log in to Crowd console
+
+Now you can verify the installation and log in with the credentials defined in the previous step.
+
+==== Configure Crowd
+
+You will have to configure crowd to enable the Atlassian tools and Rundeck to login with crowd credentials.
+Crowd is available at `https://crowd.192.168.56.31.nip.io/crowd`
+
+====== Add CD_User
+OpenDevStack requires one technical user that has read access to all OpenDevStack enabled Repos.
+We will use the above mentioned user `cd_user` with password `cd_user`.
+
+Navigate to _-> Users -> Add User_ 
+
+|===
+|Parameter | Value | Comment
+
+| Email Address 
+| cd_user@opendevstack.local 
+| could be set to a real one
+
+| Active
+| true
+|
+
+| Username
+| cd_user
+| must be consistent with the values in the setup step
+
+| Password
+| cd_user
+| must be consistent with the values in the setup step
+
+| Confirm Password
+| cd_user
+| must be consistent with the password field
+
+| First Name
+| CD
+| not important
+
+| Last Name
+| User
+| not important
+
+| Display name
+| CD User
+| will be automatically filled, can be overwritten
+
+| Directory
+| OpenDevStack Crowd server
+|
+|===
+
+====== Add OpenDevStack groups
+
+You will have to add the following groups to crowd's internal directory.
+
+|===
+| Group | Description
+
+| opendevstack-users
+| Group for normal users without adminstration rights
+
+| opendevstack-administrators
+| Group for administration users
+|===
+
+To do so, access the crowd console at https://crowd.192.168.56.31.nip.io/crowd/console/
+Choose the *Groups* menu point and click *Add group*
+Enter the group name like shown above and link it to the created internal directory.
+
+====== Add groups to user
+
+.opendevstack.admin
+Now you have to add all groups to the administrator.
+Go to the *Users* section in Crowd, choose your administration user (default: `opendevstack.admin`) and open the *Groups* tab.
+Click *Add groups*, search for all by leaving the Search fields empty and add all groups.
+
+.cd_user
+Now you have to add the `opendevstack-users` group to the cd_user
+Go to the *Users* section in Crowd, choose your cd user (default: `cd_user`) and open the *Groups* tab
+Click *Add groups*, search for `opendevstack-users` and add this group.
+
+====== Add applications to crowd
+
+You will have to add the applications you want to access with your Crowd credentials in the Crowd console.
+Access the Crowd console at http://192.168.56.31:8095/crowd/console/
+Choose the *Applications* menu point and click *Add application*
+In the following wizard enter the data for the application you want to add. See the data for the applications in the test environment in the table below.
+
+|===
+| Application type | Name | Password | URL | IP address | Directories | Authorisation | Additional Remote Adresses
+
+| JIRA
+| jira
+| jira
+| https://jira.192.168.56.31.nip.io
+| 192.168.56.31
+| Internal directory with OpenDevStack groups
+| all users
+| 0.0.0.0/0
+
+| Confluence
+| confluence
+| confluence
+| https://confluence.192.168.56.31.nip.io
+| 192.168.56.31
+| Internal directory with OpenDevStack groups
+| all users
+| 0.0.0.0/0
+
+| Bitbucket Server
+| bitbucket
+| bitbucket
+| https://bitbucket.192.168.56.31.nip.io
+| 192.168.56.31
+| Internal directory with OpenDevStack groups
+| all users
+| 0.0.0.0/0
+
+| Generic application
+| rundeck
+| rundeck
+| http://192.168.56.31:4440/rundeck
+| 192.168.56.31
+| Internal directory with OpenDevStack groups
+| all users
+| 0.0.0.0/0
+
+| Generic application
+| provision
+| provision
+| http://192.168.56.1:8088
+| 192.168.56.1
+| Internal directory with OpenDevStack groups
+| all users
+| 0.0.0.0/0
+
+| Generic application
+| sonarqube
+| sonarqube
+| https://sonarqube-cd.192.168.56.101
+| 192.168.56.101
+| Internal directory with OpenDevStack groups
+| all users
+| 0.0.0.0/0
+|===
+
+==== Correct session handling for development
+
+Remove the check mark for "Require consistent client IP address" under "Session configuration".
+
+You find the session configuration as a menu item under the cog in the upper right corner.
+
+==== Bitbucket Setup
+
+===== Run Configuration Wizard
+
+Access https://bitbucket.192.168.56.31.nip.io
+
+Be patient. First time accessing this page takes some time.
+
+On the configuration page you have the possibility to define the application name, the base URL and to get an evaluation license or enter a valid license.
+
+The baseURL should be set to `https://bitbucket.192.168.56.31.nip.io`.
+
+Get an evaluation license from MyAtlassian. You need to get it manually there.
+
+After adding the license you have to create a local Bitbucket administrator account.
+We will use `bitbucket.admin` with Password `admin` for this guide.
+
+Don't integrate Bitbucket with Jira at this point, but proceed with going to Bitbucket.
+
+===== Check Server Settings
+
+Check under Administration / Server settings, if base url is correctly set.
+
+===== Configure Crowd access
+
+Go to the Bitbucket start page at https://bitbucket.192.168.56.31/. 
+Open the administration settings and navigate to the *User directories* menu.
+Here you have to add a directory of type _Atlassian Crowd_.
+Here you have to add the Crowd server URL `+http://192.168.56.31:8095/crowd+`. We leave the direct HTTP address, because we are on the same server. Otherwise we need to take care of the self-signed certificate first.
+
+You also have to add the application name and the password you have defined for Bitbucket in crowd.
+For the local test environment this is `bitbucket` `bitbucket`
+Now activate *nested groups* and deactivate the *incremental synchronization*
+The group membership should be proofed every time a user logs in.
+Test the settings and save them.
+Now change the order of the user directories. The Crowd directory has to be on first position.
+
+Synchronize the directory.
+
+.Table Config Parameters
+|===
+|Parameter|Value
+
+|Name|Crowd Server
+|Server URL|http://192.168.56.31:8095/crowd
+|Application Name|bitbucket
+|Application Password|bitbucket
+|Enable Nested Groups|enabled
+|Enable Incremental Synchronization|disabled
+|===
+
+Everything else can be left blank.
+
+===== Configure user groups
+
+====== Add groups
+
+After configuring the crowd directory change to *Groups*.
+You should see here
+
+|===
+| Group | Description
+
+| opendevstack-administrators
+| OpenDevStack administrator group
+
+| opendevstack-users
+| OpenDevStack user group
+|===
+
+====== Add permissions
+
+The last step is to configure the permissions for the created groups.
+Go to the *Global permissions* menu.
+In the groups section add the `opendevstack-administrators` group with _System Admin_ rights.
+Add the `opendevstack-users` group with _Project Creator_ rights.
+
+==== Jira Setup
+
+===== Run Configuration Wizard
+
+Access https://jira.opitz-consulting.com.192.168.56.31.nip.io
+
+Be patient. First time accessing this page takes time.
+
+====== Step 1: Setup application properties
+
+Here you have to choose the application title and the base URL.
+As a base URL enter the URL on the reverse Proxy: `https://jira.opitz-consulting.com.192.168.56.31.nip.io`
+
+====== Step 2: Specify your license key
+
+Here you have to enter the license key for the Jira instance (Jira Software (Server)). 
+Go to MyAtlassian and generate an evaluation license.
+
+====== Step 3: Set up administrator account
+
+Now you have to set up a Jira administrator account.
+For this tutorial, we will use username `jira.admin` with password `admin`.
+
+====== Step 4: Set up email notifications
+
+Unless you have configured a mail server, leave this for later.
+
+====== Step 5: Basic configuration
+
+To finish this part of the Jira installation, you will have to provide some informations to your prefered language, your avatar and you will have to create an empty or a sample project.
+After these basic configurations, you have access to the Jira board.
+If you get an error regarding XSRF. Try to access Jira at: `http://192.168.56.31:8080`
+
+===== Configure Crowd access
+
+====== Configure user directory
+
+Open the *User management* in the Jira administration.
+To enter the administration, you have to verify you have admin rights with the password for your admin user.
+Click the *User Directories* entry at the left..
+Now choose *Add Directory*.
+Here you have to add a directory of type _Atlassian Crowd_.
+Here you have to add the Crowd server URL `+http://192.168.56.31:8095/crowd+`
+You also have to add the application name and the password you have defined for Jira in crowd.
+For the local test environment this is `jira` `jira`
+Now activate *nested groups* and deactivate the *incremental synchronization*
+The group membership should be proofed every time a user logs in.
+Test the settings and save them.
+Now change the order of the user directories. The Crowd directory has to be on first position.
+
+.Table Config Parameters
+|===
+|Parameter|Value
+
+|Name|Crowd Server
+|Server URL|http://192.168.56.31:8095/crowd
+|Application Name|jira
+|Application Password|jira
+|Enable Nested Groups|enabled
+|Enable Incremental Synchronization|disabled
+|===
+
+Everything else can be left blank.
+
+By clicking "Synchronize" perform a synchronization with the Crowd Directory.
+
+==== Confluence Setup
+
+===== Run Configuration Wizard
+
+Access https://confluence.192.168.56.31.nip.io
+
+====== Step 1: Set up Confluence
+
+Here you have to choose *Production Installation*, because we want to configure an external database.
+
+====== Step 2: Get add-ons
+
+Ensure the add-ons are unchecked and proceed.
+
+====== Step 3: License key
+
+Here you are able to get an evaluation license from atlassian or to enter a valid license key.
+
+====== Step 4: Choose a Database Configuration
+
+Here you have to choose *My own database* with the option _PostgreSQL_
+
+====== Step 5: Configure Database
+
+Click the *By Connection String* button and configure the database with the following values:
+
+|===
+| Option | Value
+
+| Driver Class Name
+| org.postgresql.Driver
+
+| Database URL
+| jdbc:postgresql://localhost:5432/confluence
+
+| User Name
+| confluence
+
+| Password
+| confluence
+|===
+
+Be patient. This step takes some time until next page appears.
+Nginx might get a gateway timeout. 
+
+====== Step 6: Load Content
+
+Here you have to choose *Empty Site* or *Example Site*
+
+====== Step 7: Configure User Management
+
+Choose *Manage users and groups within Confluence*. Crowd will be configured later.
+
+====== Step 8: Configure System Administrator account
+
+Here you have to configure a local administrator account. After this step, you are able to work with Confluence. Just press Start and create a space.
+
+We will use: `confluence.admin` with password `admin`.
+
+===== Step 9: Configure Base URL
+
+Under General configuration, set the base url to `https://confluence.192.168.56.31.nip.io`
+
+When you have saved the changes, you can restart confluence.
+
+From within `ods-configuration/infrastructure-setup`
+
+....
+vagrant ssh atlassian
+sudo service confluence restart
+....
+
+===== Configure Crowd access
+
+====== Configure user directory
+
+Open the *User management* in the Confluence administration.
+To enter the administration, you have to verify you have admin rights with the password for your admin user.
+Click the *User Directories* entry at the left in the *USERS & SECURITY* section.
+Now choose *Add Directory*.
+Here you have to add a directory of type _Atlassian Crowd_.
+Here you have to add the Crowd server URL `+http://192.168.56.31:8095/crowd+`
+You also have to add the application name and the password you have defined for Confluence in crowd.
+For the local test environment this is `confluence` `confluence`
+Now activate *nested groups* and deactivate the *incremental synchronization*
+The group membership should be proofed every time a user logs in.
+Test the settings and save them.
+Now change the order of the user directories. The Crowd directory has to be on first position.
+
+.Table Config Parameters
+|===
+|Parameter|Value
+
+|Name|Crowd Server
+|Server URL|http://192.168.56.31:8095/crowd
+|Application Name|confluence
+|Application Password|confluence
+|Enable Nested Groups|enabled
+|Enable Incremental Synchronization|disabled
+|===
+
+==== Create opendevstack project in Bitbucket
+
+We will mirror the opendevstack project into this Bitbucket instance.
+Therefore, we need to create a new _project_.
+
+* Access Bitbucket at https://bitbucket.192.168.56.31.nip.io
+* Go to the Projects page in Bitbucket
+* Hit "Create" button
+* enter Project Name: OpenDevStack and key: OPENDEVSTACK
+* Hit `Create Project`
+
+You will be directed to the projects dashboard.
+Using the '+' sign  you need to create a couple of repositories:
+
+* ods-core
+* ods-configuration
+* ods-configuration-sample
+* ods-jenkins-shared-library
+* ods-project-quickstarters
+* ods-provisioning-app
+
+Each time you are first redirected to the repository page. You must navigate back to the projects page (clicking the project avatar on the left menu bar).
+
+On the Project Dashboard Navigate to the "Settings" menu and grant the group `opendevstack-users` admin access.
+In the settings section, allow the `bitbucket-users` group write access.
+
+==== Add SSH Key to the cd_user
+
+In the administration section go to _System -> User Directories_ and _Synchronise_ the Crowd server.
+This ensures that all users, especially the `cd_user` from the crowd directory are known to Bitbucket.
+
+Then go to _Administration -> Users_ and select the `cd_user`. Open the _SSH keys_ tab and upload the generated SSH key. You find the key on the your host computer at the project root directory (the directory that contains `ods-core` and the other directories). Copy the contents of this file into the entry field.
+
+=== Preparing the installation
+
+Now that Atlassain tooling has been configured, we can execute the second automated script.
+
+On the host, navigate to `ods-core/infrastructure-setup` and exeucte `prepare-local-environment.sh`
+
+==== Monitor the progress
+
+This sets up a complete infrastructure on OpenShift. Somethings might fail. Yes we know, we should implement an automatic retry mechanism. But until then, your action is required.
+
+So log in to the OpenShift console at https://192.168.56.101:8443/console and navigate to the OpenDevStack Template (id: cd) project.
+Have a look at the Builds and Deployments sections.
+There should soon a nexus deployment start (as noted on the command line).
+
+
+
+
+== Helpful things to know
+
+.How to login to docker registry and pull and push images
+
+    oc sa get-token deployment
+    docker login -u deployment -p <token> 172.30.1.1:5000
+    docker pull 172.30.1.1:5000/openshift/jenkins:2
+    docker push 172.30.1.1:5000/openshift/jenkins:2
+    docker tag sonatype-dev 172.30.1.1:5000/cd/sonatype:latest
+
+
+== In case of errors with Atlassian tools
+
+Check the status of the services.
+In `ods-core/infrastructure-setup`
+
+....
+vagrant ssh atlassian
+sudo systemctl status confluence.service
+sudo systemctl status atlbitbucket.service
+sudo systemctl status crowd.service
+....
+
+You can view logs of the different products
+
+....
+sudo tail -100 /srv/atlassian/jira/log/atlassian-jira.log
+sudo tail -100 /srv/atlassian/confluence/log/atlassian-jira.log
+....
+
+== Rundeck
+
+---
+#Thu May 16 09:42:21 UTC 2019
+#edit below
+project.description=
+project.disable.executions=false
+project.disable.schedule=false
+project.globals.bitbucket_host=https\://bitbucket.192.168.56.31.nip.io
+project.globals.bitbucket_sshhost=ssh\://git@bitbucket.192.168.56.31.nip.io\:7999
+project.globals.nexus_host=http\://nexus-cd.192.168.56.101.nip.io/
+project.globals.openshift_apihost=https\://192.168.56.101\:8443
+project.globals.openshift_apihost_lookup=192.168.56.101\:8443
+project.globals.openshift_dockerregistry=docker-registry-default.192.168.56.101.nip.io
+project.globals.openshift_user=deployment
+project.globals.rundeck_os_user=rundeck\:rundeck
+project.jobs.gui.groupExpandLevel=1
+project.label=
+project.name=Quickstarters
+project.nodeCache.delay=30
+project.nodeCache.enabled=true
+project.ssh-authentication=privateKey
+project.ssh-command-timeout=0
+project.ssh-connect-timeout=0
+project.ssh-keypath=/var/lib/rundeck/.ssh/id_rsa
+resources.source.1.config.file=/var/rundeck/projects/Quickstarters/etc/resources.xml
+resources.source.1.config.format=resourcexml
+resources.source.1.config.generateFileAutomatically=true
+resources.source.1.config.includeServerNode=true
+resources.source.1.type=file
+service.FileCopier.default.provider=jsch-scp
+service.NodeExecutor.default.provider=jsch-ssh
+---
+
